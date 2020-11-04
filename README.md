@@ -110,7 +110,7 @@
 
 
 ### 이벤트 도출
-![image](https://user-images.githubusercontent.com/487999/79683604-47bc0180-8266-11ea-9212-7e88c9bf9911.png)
+![image](https://user-images.githubusercontent.com/20619166/98074092-0c54ed80-1ead-11eb-8801-cea6c8e76cf7.png)
 
     - 도메인 서열 분리 
         - Core Domain:  Order : 없어서는 안될 핵심 서비스이며, 연견 Up-time SLA 수준을 99.999% 목표, 배포주기는 Order 의 경우 1주일 1회 미만
@@ -119,7 +119,7 @@
 
 ## 헥사고날 아키텍처 다이어그램 도출
     
-![image](https://user-images.githubusercontent.com/487999/79684772-eba9ab00-826e-11ea-9405-17e2bf39ec76.png)
+![image](https://user-images.githubusercontent.com/20619166/98073892-acf6dd80-1eac-11eb-99ec-0a7521d96aca.PNG)
 
     - Chris Richardson, MSA Patterns 참고하여 Inbound adaptor와 Outbound adaptor를 구분함
     - 호출관계에서 PubSub 과 Req/Resp 를 구분함
@@ -250,46 +250,26 @@ public interface OrderRepository extends PagingAndSortingRepository<Order, Long>
 ```
 # Order 서비스의 주문처리
 http localhost:8081/orders bookId=10 qty=20 customerId=1001
-
-# Order 서비스의 주문 상태 확인
-http localhost:8081/orders/1
+```
+![image](https://user-images.githubusercontent.com/70673830/98118621-dafd1180-1eee-11eb-9899-768519ae80cc.png)
 
 ```
+# Order 서비스의 주문 상태 확인
+http localhost:8081/orders/1
+```
+![image](https://user-images.githubusercontent.com/70673830/98118737-fff18480-1eee-11eb-92a7-3075aece0ec1.png)
 
 
 ## 폴리글랏 퍼시스턴스
 
 Delivery 서비스에는 H2 DB 대신 HSQL DB를 사용하기로 하였다. 이를 위해 메이븐 설정(pom.xml)상 DB 정보를 HSQLDB를 사용하도록 변경하였다.
 
-```
-# Order.java
+![image](https://user-images.githubusercontent.com/20619166/98075211-4fb05b80-1eaf-11eb-9219-d848180c21bd.png)
 
-package fooddelivery;
+![image](https://user-images.githubusercontent.com/20619166/98075210-4f17c500-1eaf-11eb-92d1-3d3731bc4e0c.png)
 
-@Document
-public class Order {
+![image](https://user-images.githubusercontent.com/70673830/98119038-68406600-1eef-11eb-803e-a234638ac717.png)
 
-    private String id; // mongo db 적용시엔 id 는 고정값으로 key가 자동 발급되는 필드기 때문에 @Id 나 @GeneratedValue 를 주지 않아도 된다.
-    private String item;
-    private Integer 수량;
-
-}
-
-
-# 주문Repository.java
-package fooddelivery;
-
-public interface 주문Repository extends JpaRepository<Order, UUID>{
-}
-
-# application.yml
-
-  data:
-    mongodb:
-      host: mongodb.default.svc.cluster.local
-    database: mongo-example
-
-```
 
 ## 동기식 호출 과 Fallback 처리
 
@@ -347,9 +327,12 @@ public interface PaymentService {
 # 결제 (Payment) 서비스를 잠시 내려놓음 (ctrl+c)
 
 #주문처리
-http localhost:8081/orders bookId=1 qty=1 customerId=1001   #Fail
 http localhost:8081/orders bookId=2 qty=1 customerId=1002   #Fail
 
+```
+![image](https://user-images.githubusercontent.com/70673830/98119212-a89fe400-1eef-11eb-8b8e-196a219b0f38.png)
+
+```
 #결제서비스 재기동
 cd Payment
 mvn spring-boot:run
@@ -358,6 +341,8 @@ mvn spring-boot:run
 http localhost:8081/orders bookId=1 qty=1 customerId=1001   #Success
 http localhost:8081/orders bookId=2 qty=1 customerId=1002   #Success
 ```
+
+![image](https://user-images.githubusercontent.com/70673830/98119273-bce3e100-1eef-11eb-9095-5ab722c00185.png)
 
 - 또한 과도한 요청시에 서비스 장애가 도미노 처럼 벌어질 수 있다. (서킷브레이커, 폴백 처리는 운영단계에서 설명한다.)
 
@@ -372,21 +357,29 @@ http localhost:8081/orders bookId=2 qty=1 customerId=1002   #Success
 - 이를 위하여 결제이력에 기록을 남긴 후에 곧바로 결제승인이 되었다는 도메인 이벤트를 카프카로 송출한다(Publish)
  
 ```
-package fooddelivery;
+package bookmarket;
+
+import javax.persistence.*;
+import org.springframework.beans.BeanUtils;
+import java.util.List;
 
 @Entity
-@Table(name="결제이력_table")
-public class 결제이력 {
+@Table(name="Payment_table")
+public class Payment {
 
- ...
-    @PrePersist
+    @Id
+    @GeneratedValue(strategy=GenerationType.AUTO)
+    private Long id;
+    private Long orderId;
+    private String status;
+    private Long customerId;
+
+    @PostPersist
     public void onPostPersist(){
         Paid paid = new Paid();
         BeanUtils.copyProperties(this, paid);
         paid.publishAfterCommit();
     }
-
-}
 ```
 - 배송 서비스에서는 결제승인 이벤트에 대해서 이를 수신하여 자신의 정책을 처리하도록 PolicyHandler 를 구현한다:
 
@@ -426,43 +419,44 @@ public class PolicyHandler{
             deliveryRepository.save(delivery);
         }
     }
-    @StreamListener(KafkaProcessor.INPUT)
-    public void wheneverPayCanceled_DeliveryCancel(@Payload PayCanceled payCanceled){
-
-        if(payCanceled.isMe()){
-            System.out.println("##### listener DeliveryCancel : " + payCanceled.toJson());
-
-            List<Delivery> deliveryList = deliveryRepository.findByOrderId(payCanceled.getOrderId());
-            for(Delivery delivery : deliveryList){
-                // view 객체에 이벤트의 eventDirectValue 를 set 함
-                delivery.setStatus("DeliveryCanceled");
-                // view 레파지 토리에 save
-                deliveryRepository.save(delivery);
-            }
-        }
-    }
-
-}
 
 배송서비스는 주문/결제와 완전히 분리되어있으며, 이벤트 수신에 따라 처리되기 때문에, 배송 서비스가 유지보수로 인해 잠시 내려간 상태라도 주문을 받는데 문제가 없다:
-```
+
 # 배송서비스 (Delivery) 를 잠시 내려놓음 (ctrl+c)
 
 #주문처리
-http localhost:8081/orders bookId=1 qty=1 customerId=1001   #Success
 http localhost:8081/orders bookId=2 qty=1 customerId=1002   #Success
-
+```
+![image](https://user-images.githubusercontent.com/70673830/98119447-f7e61480-1eef-11eb-958b-4faf1dee47b1.png)
+```
 #주문상태 확인
 http localhost:8081/orders     # 주문상태 안바뀜 확인
+```
+![image](https://user-images.githubusercontent.com/70673830/98119540-121ff280-1ef0-11eb-93fc-5982582757c2.png)
 
+```
 #배송 서비스 기동
 cd Delivery
 mvn spring-boot:run
 
 #주문상태 확인
-http localhost:8081/orders     # 모든 주문의 상태가 "shipped"으로 확인
+http localhost:8081/orders     # 주문의 상태가 "shipped"으로 확인
 ```
+![image](https://user-images.githubusercontent.com/70673830/98119616-3380de80-1ef0-11eb-8760-64d746230321.png)
 
+## CQRS
+customerview(mypage)를 통해 구현하였다.
+
+![image](https://user-images.githubusercontent.com/70673830/98119678-48f60880-1ef0-11eb-955e-a99ef278f2d3.png)
+
+
+
+## gateway
+gateway 프로젝트 내 application.yml
+
+![image](https://user-images.githubusercontent.com/70673830/98119760-65924080-1ef0-11eb-8c21-078c5811c4e0.png)
+
+![image](https://user-images.githubusercontent.com/70673830/98119815-7a6ed400-1ef0-11eb-9576-028614349553.png)
 
 # 운영
 
@@ -472,92 +466,90 @@ http localhost:8081/orders     # 모든 주문의 상태가 "shipped"으로 확�
 각 구현체들은 각자의 source repository 에 구성되었고, 사용한 CI/CD 플랫폼은 GCP를 사용하였으며, pipeline build script 는 각 프로젝트 폴더 이하에 cloudbuild.yml 에 포함되었다.
 
 
-## 동기식 호출 / 서킷 브레이킹 / 장애격리
+## Circuit Breaker 점검
 
-* 서킷 브레이킹 프레임워크의 선택: Spring FeignClient + Hystrix 옵션을 사용하여 구현함
-
-시나리오는 주문(Order)-->결제(Payment) 시의 연결을 RESTful Request/Response 로 연동하여 구현이 되어있고, 결제 요청이 과도할 경우 CB 를 통하여 장애격리.
-
-- Hystrix 를 설정:  요청처리 쓰레드에서 처리시간이 610 밀리가 넘어서기 시작하여 어느정도 유지되면 CB 회로가 닫히도록 (요청을 빠르게 실패처리, 차단) 설정
-```
-# application.yml
-feign:
-  hystrix:
-    enabled: true
-    
-hystrix:
-  command:
-    # 전역설정
-    default:
-      execution.isolation.thread.timeoutInMilliseconds: 610
+시나리오는 주문(Order)-->결제(Payment) 시의 연결을 RESTful Request/Response 로 연동하여 구현이 되어있고, 결제 요청에 orderId가 미존재 시 "circuitBreaker.requestVolumeThreshold"의 옵션을 통한 n개 이상 결제 요청 시 CB 를 통하여 장애격리.
 
 ```
+Hystrix Command
+	5000ms 이상 Timeout 발생 시 CircuitBearker 발동
 
-- 피호출 서비스(결제:Payment) 의 임의 부하 처리 - 400 밀리에서 증감 300 밀리 정도 왔다갔다 하게
-```
-# (Payment) Payment.java (Entity)
-    @PostPersist
-    public void onPostPersist(){
-        Paid paid = new Paid();
-        BeanUtils.copyProperties(this, paid);
-        paid.publishAfterCommit();
-
-        try{
-            Thread.sleep((long)(400+Math.random()*300));
-        }catch (InterruptedException e){
-            e.printStackTrace();
-        }
-    }
+CircuitBeaker 발생
+	http http://localhost:8080/selectPaymentInfo?orderId=0
+		- 잘못된 쿼리 수행 시 CircuitBeaker
+		- 10000ms(10sec) Sleep 수행
+		- 5000ms Timeout으로 CircuitBeaker 발동
+		- 10000ms(10sec) 
+    - 1건 이상 발생 시 발동
 ```
 
-* 부하테스터 siege 툴을 통한 서킷 브레이커 동작 확인:
-- 동시사용자 100명
-- 10초 동안 실시
-
+![image](https://user-images.githubusercontent.com/70673830/98113539-28758080-1ee7-11eb-8b34-dab272e9f122.png)
+#### 소스 코드
 ```
-$ siege -c10 -t10S -r10 --content-type "application/json" 'http://localhost:8081/orders POST {"bookId": "10", "qty": "1", "customerId": "1002"}'
+# PaymentController.java
+ @GetMapping("/selectPaymentInfo")
+ @HystrixCommand(fallbackMethod = "fallbackPayment", commandProperties = {
+         @HystrixProperty(name = "execution.isolation.thread.timeoutInMilliseconds", value = "5000"),
+         @HystrixProperty(name = "metrics.rollingStats.timeInMilliseconds", value = "10000"),
+         @HystrixProperty(name = "circuitBreaker.errorThresholdPercentage", value = "10"),
+         @HystrixProperty(name = "circuitBreaker.requestVolumeThreshold", value = "1"),
+         @HystrixProperty(name = "circuitBreaker.sleepWindowInMilliseconds", value = "10000")
+ })
+ public String selectPaymentInfo(@RequestParam long orderId) throws InterruptedException {
 
-
+  if (orderId <= 0) {
+   Thread.sleep(10000);
+  } else {
+   Optional<Payment> payment = paymentRepository.findById(orderId);
+   return payment.get().getPaymentStatus();
+ }
+  
 ```
-- 운영시스템은 죽지 않고 지속적으로 CB 에 의하여 적절히 회로가 열림과 닫힘이 벌어지면서 자원을 보호하고 있음을 보여줌. 하지만, 63.55% 가 성공하였고, 46%가 실패했다는 것은 고객 사용성에 있어 좋지 않기 때문에 Retry 설정과 동적 Scale out (replica의 자동적 추가,HPA) 을 통하여 시스템을 확장 해주는 후속처리가 필요.
+![image](https://user-images.githubusercontent.com/70673830/98113341-ddf40400-1ee6-11eb-8d24-7517b4494d10.png)
 
-- Availability 가 높아진 것을 확인 (siege)
+- 피호출 서비스(결제:Payment) 의 timeoutInMilliseconds의 5초 이후는 아래의 CD에 격리 처리
+```
+# private String fallbackDelivery(long orderId) {
+  return "CircuitBreaker!!!";
+ }
+```
+#### 실행 결과
+![image](https://user-images.githubusercontent.com/70673830/98113470-0e3ba280-1ee7-11eb-8830-7c82b27ce0ba.png)
+
+* 결제가 이루어 지지 않은 비정상적인 호출에 대한 CD:
+- 10초 동안 격리 실시
+- 1번 이상 orderId없을 시 격리
+
+
+
+- 운영시스템은 비정상적인 접속 및 과도한 Data 조회에 대한 지속적으로 CB 에 의하여 적절히 회로가 열림과 닫힘이 벌어지면서 자원을 보호하고 있음을 보여줌. 
 
 ### 오토스케일 아웃
 앞서 CB 는 시스템을 안정되게 운영할 수 있게 해줬지만 사용자의 요청을 100% 받아들여주지 못했기 때문에 이에 대한 보완책으로 자동화된 확장 기능을 적용하고자 한다. 
 
 
-- 결제서비스에 대한 replica 를 동적으로 늘려주도록 HPA 를 설정한다. 설정은 CPU 사용량이 15프로를 넘어서면 replica 를 10개까지 늘려준다:
+- 결제서비스에 대한 replica 를 동적으로 늘려주도록 HPA 를 설정한다. 설정은 CPU 사용량이 20프로를 넘어서면 replica 를 20개까지 늘려준다:
 ```
-kubectl autoscale deploy pay --min=1 --max=10 --cpu-percent=15
+kubectl autoscale deploy payment --cpu-percent=20 --min=1 --max=20 -n books
 ```
 - CB 에서 했던 방식대로 워크로드를 2분 동안 걸어준다.
 ```
-siege -c100 -t120S -r10 --content-type "application/json" 'http://localhost:8081/orders POST {"bookId": "10", "qty": "1", "customerId": "1002"}'
+siege -c100 -t120S -v --content-type "application/json" 'http://20.196.153.152:8080/orders POST {"bookId": "10", "qty": "1", "customerId":"1002"}'
 ```
 - 오토스케일이 어떻게 되고 있는지 모니터링을 걸어둔다:
 ```
-kubectl get deploy pay -w
+kubectl get deploy payment -w
 ```
 - 어느정도 시간이 흐른 후 (약 30초) 스케일 아웃이 벌어지는 것을 확인할 수 있다:
-```
-NAME    DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
-pay     1         1         1            1           17s
-pay     1         2         1            1           45s
-pay     1         4         1            1           1m
-:
-```
+
+![image](https://user-images.githubusercontent.com/70673830/98115066-915df800-1ee9-11eb-9ebf-f2d79112bec9.png)
+
+
 - siege 의 로그를 보아도 전체적인 성공률이 높아진 것을 확인 할 수 있다. 
-```
-Transactions:		        5078 hits
-Availability:		       92.45 %
-Elapsed time:		       120 secs
-Data transferred:	        0.34 MB
-Response time:		        5.60 secs
-Transaction rate:	       17.15 trans/sec
-Throughput:		        0.01 MB/sec
-Concurrency:		       96.02
-```
+
+![image](https://user-images.githubusercontent.com/70673830/98115651-7f308980-1eea-11eb-833f-d606aaf6d6d9.png)
+
+
 
 
 ## 무정지 재배포
@@ -620,3 +612,132 @@ Concurrency:		       96.02
 ```
 
 배포기간 동안 Availability 가 변화없기 때문에 무정지 재배포가 성공한 것으로 확인됨.
+
+## Liveness Probe 점검
+### 설정 확인
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    test: orderLiveness
+  name: order
+  namespace: books
+spec:
+  containers:
+  - name: order
+    image: admin03.azurecr.io/order:V1
+    args:
+    - /bin/sh
+    - -c
+    - touch /tmp/healthy; sleep 30; rm -rf /tmp/healthy; sleep 600
+    livenessProbe:
+      exec:
+        command:
+        - cat
+        - /tmp/healthy
+      initialDelaySeconds: 5
+      periodSeconds: 5
+```
+#### 기존 서비스 삭제
+```
+kubectl delete service order -n books
+service "order" deleted
+```
+
+#### 기존 deploy 삭제
+```
+kubectl delete deploy order -n books
+deployment.apps "order" deleted
+```
+
+#### liveness 적용된 pod 생성
+```
+kubectl apply -f pod-exec-liveness.yaml
+```
+
+#### liveness 적용된 order pod 의 상태 체크( 테스트 결과 )
+```
+kubectl describe po order -n books
+```
+
+#### 5. 실습 결과
+```
+(pwd 로 현 위치가 /container-orchestration/yaml/liveness/ 인지 확인)
+(Liveness Command Probe 실습)
+kubectl create -f exec-liveness.yaml
+(컨테이너가 Running 상태로 보이나, Liveness Probe 실패로 계속 재시작)
+(kubectl describe로 실패 메시지 확인)
+kubectl describe po liveness-exec
+(Liveness HTTP Probe 실습)
+kubectl create -f http-liveness.yaml
+(kubectl describe로 실패 메시지 확인)
+kubectl describe po liveness-http
+(Liveness 와 readiness probe 동시 적용 실습)
+kubectl create -f tcp-liveness-readiness.yaml
+(8080포트에 대해 정상적으로 Liveness 와 readiness Probe를 통과해 서비스가 실행됨)
+kubectl describe po goproxy
+```
+![image](https://user-images.githubusercontent.com/70673830/98134412-148b4800-1f02-11eb-9189-f38c401c0eb8.png)
+
+
+## Config Map
+```
+Order 서비스에 configmap.yml 파일을 생성한다.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apipayurl
+data:
+  url:  http://payment:8080
+```
+```
+Order 서버스의 deployment.yml에 configmap 파일을 참조할 수 있는 값을 추가한다.
+
+          env:
+            - name: payurl
+              valueFrom:
+                configMapKeyRef:
+                  name: apipayurl
+                  key: url
+```
+```
+Order 서버스의 apllication.yml에 deployment에 추가된 값을 참조하도록 추가한다.
+
+api:
+  payment:
+    url: ${payurl}
+```
+```
+Order 서버스의 PaymentService.java에 외부 값을 보도록 변경한다.
+
+@FeignClient(name="Payment", url="${api.payment.url}")
+public interface PaymentService {
+
+    @RequestMapping(method= RequestMethod.POST, path="/payments")
+    public void payReq(@RequestBody Payment payment);
+
+}
+```
+```
+configmap.yml 파일의 url을 임의의 값으로 변경 후 order 서비스의 호출을 확인한다.
+
+data:
+  url:  http://payment:8088
+
+root@labs--2023481703:~/src/bookmarket# http http://order:8080/orders bookId=101 qty=1 customerId=10002
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json;charset=UTF-8
+Date: Wed, 04 Nov 2020 16:17:34 GMT
+transfer-encoding: chunked
+
+{
+    "error": "Internal Server Error", 
+    "message": "Could not commit JPA transaction; nested exception is javax.persistence.RollbackException: Error while committing the transaction", 
+    "path": "/orders", 
+    "status": 500, 
+    "timestamp": "2020-11-04T16:17:34.521+0000"
+}
+
+```
