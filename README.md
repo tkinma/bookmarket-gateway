@@ -619,6 +619,7 @@ HTTP/1.1 201     0.00 secs:     269 bytes ==> POST http://customerview:8080/mypa
 
 - seige 의 화면으로 넘어가서 Availability 가 100% 미만으로 떨어졌는지 확인
 ```
+
 ![image](https://user-images.githubusercontent.com/20619166/98184054-ca7b8400-1f4c-11eb-95ad-2949072ff912.png)
 
 ```
