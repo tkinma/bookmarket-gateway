@@ -482,12 +482,13 @@ hystrix:
     # 전역설정
     default:
       execution.isolation.thread.timeoutInMilliseconds: 610
-
-호출 서비스(주문:order) 임의 부하 처리 - 400 밀리에서 증감 220 밀리 정도 왔다갔다 하게
+```
+```
+호출 서비스(주문:order) 임의 부하 처리 - 400 밀리에서 증감 220 밀리 정도 왔다 갔다 하게
 # Order.java (Entity)
 
     @PrePersist
-    public void onPrePersist(){  //결제이력을 저장한 후 적당한 시간 끌기
+    public void onPrePersist(){  // 주문 저장 전 시간 끌기
   
         try {
             Thread.currentThread().sleep((long) (400 + Math.random() * 220));
@@ -496,8 +497,10 @@ hystrix:
         }
 
     }
+```
 
-
+## 부하 발생을 통한 Circuit Breaker 점검
+```
 root@siege-5c7c46b788-z8jxc:/# siege -c100 -t120S -v --content-type "application/json" 'http://Order:8080/orders POST {"bookId": "10", "qty": "1", "customerId": "1002"}'
 ** SIEGE 4.0.4
 ** Preparing 100 concurrent users for battle.
@@ -583,12 +586,7 @@ HTTP/1.1 500     0.84 secs:     248 bytes ==> POST http://Order:8080/orders
 HTTP/1.1 201    18.35 secs:     228 bytes ==> POST http://Order:8080/orders
 HTTP/1.1 201    18.35 secs:     228 bytes ==> POST http://Order:8080/orders
 
-
 ```
-
-
-
-
 - 운영시스템은 비정상적인 접속 및 과도한 Data 조회에 대한 지속적으로 CB 에 의하여 적절히 회로가 열림과 닫힘이 벌어지면서 자원을 보호하고 있음을 보여줌. 
 
 ### 오토스케일 아웃
