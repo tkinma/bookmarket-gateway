@@ -71,10 +71,10 @@ spring:
           uri: http://kakao:8080
           predicates:
             - Path=/kakaos/**
-        - id: kakaoMessages
-          uri: http://kakaoMessages:8080
+        - id: kakaomessages
+          uri: http://km:8080
           predicates:
-            - Path= /kakaoMessages/**
+            - Path= /kms/**
       globalcors:
         corsConfigurations:
           '[/**]':
