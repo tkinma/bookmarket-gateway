@@ -31,7 +31,7 @@
 1. 결제완료되면 주문 상태를 변경한다 ( Pub / Sub Event Dirven )
 1. 배송이 시작되면 주문 상태를 변경한다 ( Pub / Sub Event Dirven )
 1. 고객은 주문을 취소한다.
-1. 주문이 취소되면 결제를 취소하여 고객에게 환불한다. ( Pub / Sub Event Dirven )
+1. 주문이 취소되면 결제를 취소한다. ( Pub / Sub Event Dirven )
 1. 결제가 취소되면 배송을 취소한다. ( Pub / Sub Event Dirven )
 
 비기능적 요구사항
@@ -39,7 +39,7 @@
     1. 결제가 되지 않은 주문건은 아예 거래가 성립되지 않아야 한다  Sync 호출 
 1. 장애격리
     1. 배송 기능이 수행되지 않더라도 주문은 365일 24시간 받을 수 있어야 한다  Async (event-driven), Eventual Consistency
-    1. 결제시스템이 과중되면 사용자를 잠시동안 받지 않고 결제를 잠시후에 하도록 유도한다  Circuit breaker, fallback
+    1. 결제시스템이 과중되면 사용자를 잠시동안 받지 않고 결제를 잠시후에 하도록 유도한다  Circuit Breaker, fallback
 1. 성능
     1. 고객이 주문상태를 시스템에서 확인할 수 있어야 한다  CQRS
 
@@ -121,14 +121,14 @@
 ![image](https://user-images.githubusercontent.com/20619166/98073892-acf6dd80-1eac-11eb-99ec-0a7521d96aca.PNG)
 
     - Chris Richardson, MSA Patterns 참고하여 Inbound adaptor와 Outbound adaptor를 구분함
-    - 호출관계에서 PubSub 과 Req/Resp 를 구분함
+    - 호출 관계에서 PubSub 과 Req/Resp 를 구분함
     - 서브 도메인과 바운디드 컨텍스트의 분리:  각 팀의 KPI 별로 아래와 같이 관심 구현 스토리를 나눠가짐
 
 
 # 구현:
 
-분석/설계 단계에서 도출된 헥사고날 아키텍처에 따라, 각 BC별로 대변되는 마이크로 서비스들을 스프링부트로 구현하였다. 구현한 각 서비스를 로컬에서 실행하는 방법은 아래와 같다.
-(각자의 포트넘버는 8081 ~ 8084 이다)
+분석/설계 단계에서 도출된 헥사고날 아키텍처에 따라, 각 Bounded Context 별로 대변되는 마이크로 서비스들을 Spring Boot 로 구현하였다. 
+구현한 각 서비스를 로컬에서 실행하는 방법은 아래와 같다. (포트 넘버는 8081 ~ 8084 이다)
 
 ```
 cd Order
@@ -150,10 +150,6 @@ mvn spring-boot:run
 
 ```
 package bookmarket;
-
-import javax.persistence.*;
-import org.springframework.beans.BeanUtils;
-import java.util.List;
 
 @Entity
 @Table(name="Order_table")
@@ -184,8 +180,6 @@ public class Order {
         // mappings goes here
         OrderApplication.applicationContext.getBean(bookmarket.external.PaymentService.class)
             .payReq(payment);
-
-
     }
 
     @PreRemove
@@ -195,7 +189,6 @@ public class Order {
         orderCanceled.setStatus("OrderCanceled");
         orderCanceled.publishAfterCommit();
     }
-
 
     public Long getId() {
         return id;
@@ -210,7 +203,8 @@ public class Order {
 
 
 ```
-- Entity / Repository Pattern을 적용하여 JPA를 통하여 다양한 데이터소스 유형 (H2, HSQLDB) 에 대한 데이터 접근 어댑터를 자동 생성하기 위하여 Spring Data REST의 RestRepository 를 적용.
+- Entity / Repository Pattern을 적용하여 JPA를 통하여 다양한 데이터소스 유형 (이 과제에서는 H2, HSQLDB) 에 대한 데이터 접근 어댑터를 자동 생성하기 위하여 
+Spring Data REST의 RestRepository 를 적용
 ```
 package bookmarket;
 
@@ -236,7 +230,7 @@ http localhost:8081/orders/1
 
 ## 폴리글랏 퍼시스턴스
 
-Delivery 서비스에는 H2 DB 대신 HSQL DB를 사용하기로 하였다. 이를 위해 메이븐 설정(pom.xml)상 DB 정보를 HSQLDB를 사용하도록 변경하였다.
+Delivery 서비스에는 H2 DB 대신 HSQLDB를 사용하기로 하였다. 이를 위해 메이븐 설정(pom.xml)상 DB 정보를 HSQLDB를 사용하도록 변경하였다.
 
 ![image](https://user-images.githubusercontent.com/20619166/98075211-4fb05b80-1eaf-11eb-9219-d848180c21bd.png)
 
@@ -248,7 +242,7 @@ Delivery 서비스에는 H2 DB 대신 HSQL DB를 사용하기로 하였다. 이�
 ## 동기식 호출 과 Fallback 처리
 
 분석단계에서의 조건 중 하나로 주문(Order)->결제(Payment) 간의 호출은 동기식 일관성을 유지하는 트랜잭션으로 처리하기로 하였다. 
-호출 프로토콜은 이미 앞서 Rest Repository 에 의해 노출되어있는 REST 서비스를 FeignClient 를 이용하여 호출하도록 한다. 
+호출 프로토콜은 이미 앞서 Rest Repository 에 의해 노출되어 있는 REST 서비스를 FeignClient 를 이용하여 호출하도록 한다. 
 
 - 결제서비스를 호출하기 위하여 FeignClient 를 이용하여 Service 대행 인터페이스 (Proxy) 를 구현 
 
@@ -257,11 +251,6 @@ Delivery 서비스에는 H2 DB 대신 HSQL DB를 사용하기로 하였다. 이�
 
 
 package bookmarket.external;
-
-import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
 
 import java.util.Date;
 
@@ -301,18 +290,18 @@ public interface PaymentService {
 ```
 # 결제 (Payment) 서비스를 잠시 내려놓음 (ctrl+c)
 
-#주문처리
+# 주문처리
 http localhost:8081/orders bookId=2 qty=1 customerId=1002   #Fail
 
 ```
 ![image](https://user-images.githubusercontent.com/70673830/98119212-a89fe400-1eef-11eb-8b8e-196a219b0f38.png)
 
 ```
-#결제서비스 재기동
+# 결제서비스 재기동
 cd Payment
 mvn spring-boot:run
 
-#주문처리
+# 주문처리
 http localhost:8081/orders bookId=1 qty=1 customerId=1001   #Success
 http localhost:8081/orders bookId=2 qty=1 customerId=1002   #Success
 ```
@@ -399,22 +388,22 @@ public class PolicyHandler{
 
 # 배송서비스 (Delivery) 를 잠시 내려놓음 (ctrl+c)
 
-#주문처리
+# 주문처리
 http localhost:8081/orders bookId=2 qty=1 customerId=1002   #Success
 ```
 ![image](https://user-images.githubusercontent.com/70673830/98119447-f7e61480-1eef-11eb-958b-4faf1dee47b1.png)
 ```
-#주문상태 확인
+# 주문상태 확인
 http localhost:8081/orders     # 주문상태 안바뀜 확인
 ```
 ![image](https://user-images.githubusercontent.com/70673830/98119540-121ff280-1ef0-11eb-93fc-5982582757c2.png)
 
 ```
-#배송 서비스 기동
+# 배송 서비스 기동
 cd Delivery
 mvn spring-boot:run
 
-#주문상태 확인
+# 주문상태 확인
 http localhost:8081/orders     # 주문의 상태가 "shipped"으로 확인
 ```
 ![image](https://user-images.githubusercontent.com/70673830/98119616-3380de80-1ef0-11eb-8760-64d746230321.png)
@@ -569,6 +558,7 @@ HTTP/1.1 201    18.35 secs:     228 bytes ==> POST http://Order:8080/orders
 
 ```
 - 운영시스템은 비정상적인 접속 및 과도한 Data 조회에 대한 지속적으로 CB 에 의하여 적절히 회로가 열림과 닫힘이 벌어지면서 자원을 보호하고 있음을 보여줌. 
+하지만 75.5% 가 성공하고 31.4%가 실패했다는 것은 사용성에 있어 좋지 않기 때문에 Retry 설정과 동적 Scale out (replica의 자동적 추가, HPA) 을 통하여 시스템을 확장 해주는 후속처리 필요.
 
 ### 오토스케일 아웃
 Circuite Breaker 는 시스템을 안정되게 운영할 수 있게 해줬지만, 사용자의 요청을 100% 받아들여주지 못했기 때문에 이에 대한 보완책으로 자동화된 확장 기능을 적용하고자 한다. 
@@ -616,10 +606,7 @@ HTTP/1.1 201     0.70 secs:     207 bytes ==> POST http://localhost:8081/orders
 
 ```
 
-- 새버전으로의 배포 시작
-```
-kubectl set image ...
-```
+- 새버전으로 재배포 (Azure DevOps Pipelines)
 
 - seige 의 화면으로 넘어가서 Availability 가 100% 미만으로 떨어졌는지 확인
 ```
@@ -658,7 +645,11 @@ Concurrency:		       96.02
 
 배포기간 동안 Availability 가 변화없기 때문에 무정지 재배포가 성공한 것으로 확인됨.
 
+
 ## Liveness Probe 점검
+
+### 시나리오 1. 파일 상태 점검
+
 5초 간격으로 특정 위치의 파일 생성 여부를 확인하고, 없으면 실패로 인식해서 프로세스를 Kill하고 다시 시작,
 일정 시간 (30초)가 지나면 다시 파일을 삭제하고 Liveness 를 위한 서비스 수행한다.
 
@@ -728,6 +719,13 @@ kubectl describe po goproxy
 ```
 ![image](https://user-images.githubusercontent.com/70673830/98134412-148b4800-1f02-11eb-9189-f38c401c0eb8.png)
 
+### 시나리오 2. TCP 포트 점검
+
+Order서비스의 deployment.yml의 liveness 설정을 tcp socket 방식의 8081 포트를 바라보도록 변경하여 restart여부를 확인한다.
+
+![image](https://user-images.githubusercontent.com/20619166/98126463-f8cf7400-1ef8-11eb-9246-89f425031a86.png)
+![image](https://user-images.githubusercontent.com/20619166/98126483-fd942800-1ef8-11eb-99d9-89481b2c62e4.png)
+![image](https://user-images.githubusercontent.com/20619166/98126511-0553cc80-1ef9-11eb-9a56-b564c70466d4.png)
 
 ## Config Map
 ```
