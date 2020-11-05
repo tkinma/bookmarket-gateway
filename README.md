@@ -698,23 +698,7 @@ kubectl apply -f pod-exec-liveness.yaml
 kubectl describe po order -n books
 ```
 
-#### 5. 실습 결과
-```
-(pwd 로 현 위치가 /container-orchestration/yaml/liveness/ 인지 확인)
-(Liveness Command Probe 실습)
-kubectl create -f exec-liveness.yaml
-(컨테이너가 Running 상태로 보이나, Liveness Probe 실패로 계속 재시작)
-(kubectl describe로 실패 메시지 확인)
-kubectl describe po liveness-exec
-(Liveness HTTP Probe 실습)
-kubectl create -f http-liveness.yaml
-(kubectl describe로 실패 메시지 확인)
-kubectl describe po liveness-http
-(Liveness 와 readiness probe 동시 적용 실습)
-kubectl create -f tcp-liveness-readiness.yaml
-(8080포트에 대해 정상적으로 Liveness 와 readiness Probe를 통과해 서비스가 실행됨)
-kubectl describe po goproxy
-```
+#### 테스트 결과 이미지
 ![image](https://user-images.githubusercontent.com/70673830/98134412-148b4800-1f02-11eb-9189-f38c401c0eb8.png)
 
 ### 시나리오 2. TCP 포트 점검
