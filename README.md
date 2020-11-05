@@ -448,7 +448,9 @@ Github 소스 변경이 감지되면, CI 후 trigger 에 의해 CD까지 자동�
 시나리오는 주문(Order)시의 연결을 RESTful Request/Response 로 연동하여 구현이 되어있고, 과도한 주문 요청 시 "circuitBreaker.requestVolumeThreshold"의 옵션을 통한 장애격리 구현.
 
 ```
-Hystrix 를 설정: 요청처리 쓰레드에서 처리시간이 610 밀리가 넘어서기 시작하여 어느정도 유지되면 CB 회로가 닫히도록 (요청을 빠르게 실패처리, 차단) 설정
+## Hystrix 설정
+요청처리 쓰레드에서 처리시간이 610 밀리가 넘어서기 시작하여 어느정도 유지되면 CB 회로가 닫히도록 (요청을 빠르게 실패처리, 차단) 설정
+
 # application.yml
 feign:
   hystrix:
