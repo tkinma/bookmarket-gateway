@@ -632,8 +632,11 @@ HTTP/1.1 201     0.00 secs:     269 bytes ==> POST http://customerview:8080/mypa
 배포기간중 Availability 가 평소 100%에서 90% 로 떨어지는 것을 확인. 원인은 쿠버네티스가 성급하게 새로 올려진 서비스를 READY 상태로 인식하여 서비스 유입을 진행한 것이기 때문. 이를 막기위해 Readiness Probe 를 설정함:
 
 ```
-# deployment.yaml 의 readiness probe 의 설정:
-
+# deployment.yaml 의 readiness probe 의 설정 
+  initialDelaySeconds: 10
+  timeoutSeconds: 2
+  periodSeconds: 5
+  failureThreshold: 10
 
 kubectl apply -f kubernetes/deployment.yaml
 ```
