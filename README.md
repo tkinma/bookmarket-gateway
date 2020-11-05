@@ -468,57 +468,124 @@ gateway 프로젝트 내 application.yml
 
 ## Circuit Breaker 점검
 
-시나리오는 주문(Order)-->결제(Payment) 시의 연결을 RESTful Request/Response 로 연동하여 구현이 되어있고, 결제 요청에 orderId가 미존재 시 "circuitBreaker.requestVolumeThreshold"의 옵션을 통한 n개 이상 결제 요청 시 CB 를 통하여 장애격리.
+시나리오는 주문(Order)시의 연결을 RESTful Request/Response 로 연동하여 구현이 되어있고, 과도한 주문 요청 시 "circuitBreaker.requestVolumeThreshold"의 옵션을 통한 장애격리 구현.
 
 ```
-Hystrix Command
-	5000ms 이상 Timeout 발생 시 CircuitBearker 발동
+Hystrix 를 설정: 요청처리 쓰레드에서 처리시간이 610 밀리가 넘어서기 시작하여 어느정도 유지되면 CB 회로가 닫히도록 (요청을 빠르게 실패처리, 차단) 설정
+# application.yml
+feign:
+  hystrix:
+    enabled: true
+    
+hystrix:
+  command:
+    # 전역설정
+    default:
+      execution.isolation.thread.timeoutInMilliseconds: 610
 
-CircuitBeaker 발생
-	http http://localhost:8080/selectPaymentInfo?orderId=0
-		- 잘못된 쿼리 수행 시 CircuitBeaker
-		- 10000ms(10sec) Sleep 수행
-		- 5000ms Timeout으로 CircuitBeaker 발동
-		- 10000ms(10sec) 
-    - 1건 이상 발생 시 발동
-```
+호출 서비스(주문:order) 임의 부하 처리 - 400 밀리에서 증감 220 밀리 정도 왔다갔다 하게
+# Order.java (Entity)
 
-![image](https://user-images.githubusercontent.com/70673830/98113539-28758080-1ee7-11eb-8b34-dab272e9f122.png)
-#### 소스 코드
-```
-# PaymentController.java
- @GetMapping("/selectPaymentInfo")
- @HystrixCommand(fallbackMethod = "fallbackPayment", commandProperties = {
-         @HystrixProperty(name = "execution.isolation.thread.timeoutInMilliseconds", value = "5000"),
-         @HystrixProperty(name = "metrics.rollingStats.timeInMilliseconds", value = "10000"),
-         @HystrixProperty(name = "circuitBreaker.errorThresholdPercentage", value = "10"),
-         @HystrixProperty(name = "circuitBreaker.requestVolumeThreshold", value = "1"),
-         @HystrixProperty(name = "circuitBreaker.sleepWindowInMilliseconds", value = "10000")
- })
- public String selectPaymentInfo(@RequestParam long orderId) throws InterruptedException {
-
-  if (orderId <= 0) {
-   Thread.sleep(10000);
-  } else {
-   Optional<Payment> payment = paymentRepository.findById(orderId);
-   return payment.get().getPaymentStatus();
- }
+    @PrePersist
+    public void onPrePersist(){  //결제이력을 저장한 후 적당한 시간 끌기
   
-```
-![image](https://user-images.githubusercontent.com/70673830/98113341-ddf40400-1ee6-11eb-8d24-7517b4494d10.png)
+        try {
+            Thread.currentThread().sleep((long) (400 + Math.random() * 220));
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
-- 피호출 서비스(결제:Payment) 의 timeoutInMilliseconds의 5초 이후는 아래의 CD에 격리 처리
-```
-# private String fallbackDelivery(long orderId) {
-  return "CircuitBreaker!!!";
- }
-```
-#### 실행 결과
-![image](https://user-images.githubusercontent.com/70673830/98113470-0e3ba280-1ee7-11eb-8830-7c82b27ce0ba.png)
+    }
 
-* 결제가 이루어 지지 않은 비정상적인 호출에 대한 CD:
-- 10초 동안 격리 실시
-- 1번 이상 orderId없을 시 격리
+
+root@siege-5c7c46b788-z8jxc:/# siege -c100 -t120S -v --content-type "application/json" 'http://Order:8080/orders POST {"bookId": "10", "qty": "1", "customerId": "1002"}'
+** SIEGE 4.0.4
+** Preparing 100 concurrent users for battle.
+The server is now under siege...
+HTTP/1.1 201     5.35 secs:     226 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     5.36 secs:     226 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     5.35 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     5.37 secs:     226 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     5.34 secs:     226 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     5.44 secs:     226 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     5.47 secs:     226 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     5.48 secs:     226 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     5.49 secs:     226 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     5.50 secs:     226 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     8.64 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     8.68 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     8.78 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     8.78 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     3.31 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     8.78 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     8.80 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     8.81 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     8.80 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     8.81 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    11.84 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    11.84 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    11.91 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    11.93 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    11.95 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    11.99 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    12.01 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     3.23 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    12.03 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    12.02 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    15.00 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    15.03 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201     3.25 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    15.19 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    15.21 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    15.21 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    15.23 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    15.23 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    15.28 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    15.25 secs:     228 bytes ==> POST http://Order:8080/orders
+
+* 과도한 요청으로 CB 작동 -> 요청 차단
+
+HTTP/1.1 500     2.26 secs:     248 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 500     2.29 secs:     248 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 500     2.28 secs:     248 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 500     2.47 secs:     248 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 500     2.22 secs:     248 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 500     2.48 secs:     248 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 500     2.29 secs:     248 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 500     2.30 secs:     248 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 500     2.29 secs:     248 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 500     2.27 secs:     248 bytes ==> POST http://Order:8080/orders
+
+* 요청을 어느 정도 차단 후, 기존에 밀린 일들이 처리되었고, 회로를 닫아 요청 처리
+
+HTTP/1.1 201    18.05 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    18.05 secs:     228 bytes ==> POST http://Order:8080/orders
+
+* 다시 요청이 쌓이기 시작하여 건당 처리시간 부하 => 회로 열기 => 요청 실패처리
+
+HTTP/1.1 500     0.66 secs:     248 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 500     0.75 secs:     248 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 500     0.77 secs:     248 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 500     0.76 secs:     248 bytes ==> POST http://Order:8080/orders
+
+* 요청을 어느 정도 차단 후, 기존에 밀린 일들이 처리되었고, 회로를 닫아 요청 처리
+
+HTTP/1.1 201    18.25 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    18.31 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    18.32 secs:     228 bytes ==> POST http://Order:8080/orders
+
+HTTP/1.1 500     0.82 secs:     248 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 500     0.83 secs:     248 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 500     0.84 secs:     248 bytes ==> POST http://Order:8080/orders
+
+* 건당 (쓰레드당) 처리시간이 610 밀리 미만으로 회복 -> 요청 수락
+
+HTTP/1.1 201    18.35 secs:     228 bytes ==> POST http://Order:8080/orders
+HTTP/1.1 201    18.35 secs:     228 bytes ==> POST http://Order:8080/orders
+
+
+```
+
 
 
 
