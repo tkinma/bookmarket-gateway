@@ -112,8 +112,8 @@
 ![image](https://user-images.githubusercontent.com/20619166/98074092-0c54ed80-1ead-11eb-8801-cea6c8e76cf7.png)
 
     - 도메인 서열 분리 
-        - Core Domain:  Order : 없어서는 안될 핵심 서비스이며, 연견 Up-time SLA 수준을 99.999% 목표, 배포주기는 Order 의 경우 1주일 1회 미만
-        - Supporting Domain:   Delivery : 경쟁력을 내기위한 서비스이며, SLA 수준은 연간 60% 이상 uptime 목표, 배포주기는 각 팀의 자율이나 표준 스프린트 주기가 1주일 이므로 1주일 1회 이상을 기준으로 함.
+        - Core Domain:  Order : bookmarket 핵심 서비스이며, 연견 Up-time SLA 수준을 99.999% 목표, 배포주기는 Order 의 경우 1주일 1회 미만
+        - Supporting Domain:   Delivery : 경쟁력을 내기 위한 서비스이며, SLA 수준은 연간 60% 이상 uptime 목표, 배포주기는 각 팀의 자율이나 표준 스프린트 주기가 1주일 이므로 1주일 1회 이상을 기준으로 함.
         - General Domain:   Payment : 결제서비스로 3rd Party 외부 서비스를 사용하는 것이 경쟁력이 높음 (핑크색으로 이후 전환할 예정)
 
 ## 헥사고날 아키텍처 다이어그램 도출
