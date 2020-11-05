@@ -423,11 +423,11 @@ customerview(mypage)를 통해 구현하였다.
 ## gateway
 gateway 프로젝트 내 application.yml
 
-![image](https://user-images.githubusercontent.com/70673830/98119760-65924080-1ef0-11eb-8c21-078c5811c4e0.png)
+![image](https://user-images.githubusercontent.com/70673849/98194645-34068d00-1f63-11eb-8440-8d89dfc08ed1.png) ![image](https://user-images.githubusercontent.com/70673849/98194532-f86bc300-1f62-11eb-91aa-666ad18f6d89.png)
 
 ![image](https://user-images.githubusercontent.com/70673830/98119815-7a6ed400-1ef0-11eb-9576-028614349553.png)
 
-![image](https://user-images.githubusercontent.com/70673849/98194532-f86bc300-1f62-11eb-91aa-666ad18f6d89.png)
+
 
 
 # 운영
