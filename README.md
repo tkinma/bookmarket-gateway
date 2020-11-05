@@ -122,9 +122,9 @@
     
 ![image](https://user-images.githubusercontent.com/20619166/98073892-acf6dd80-1eac-11eb-99ec-0a7521d96aca.PNG)
 
-    - MSA Patterns 참고하여 Inbound adaptor와 Outbound adaptor를 구분함
+    - 이벤트 흐름에서 Inbound adaptor와 Outbound adaptor를 구분함
     - 호출 관계에서 Pub/Sub 과 Req/Resp 를 구분함
-    - 서브 도메인과 바운디드 컨텍스트의 분리:  각 팀의 KPI 별로 아래와 같이 관심 구현 스토리를 나눠가짐
+    - 바운디드 컨텍스트에 서브 도메인을 1 대 1 모델링하고 팀원별 관심 구현 스토리를 나눠가짐
 
 
 # 구현:
