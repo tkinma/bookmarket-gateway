@@ -427,6 +427,8 @@ gateway 프로젝트 내 application.yml
 
 ![image](https://user-images.githubusercontent.com/70673830/98119815-7a6ed400-1ef0-11eb-9576-028614349553.png)
 
+![image](https://user-images.githubusercontent.com/70673849/98194532-f86bc300-1f62-11eb-91aa-666ad18f6d89.png)
+
 
 # 운영
 
