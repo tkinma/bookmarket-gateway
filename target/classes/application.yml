@@ -23,15 +23,15 @@ spring:
         - id: customerview
           uri: http://localhost:8084
           predicates:
-            - Path= /mypages/**
+            - Path=/mypages/**
         - id: kakao
           uri: http://localhost:8086
           predicates:
             - Path=/kakaos/**
-        - id: kakaoMessages
+        - id: kakaomessages
           uri: http://localhost:8088
           predicates:
-            - Path= /kakaomessages/**
+            - Path=/kms/**
       globalcors:
         corsConfigurations:
           '[/**]':
@@ -66,15 +66,15 @@ spring:
         - id: customerview
           uri: http://customerview:8080
           predicates:
-            - Path= /mypages/**
+            - Path=/mypages/**
         - id: kakao
           uri: http://kakao:8080
           predicates:
             - Path=/kakaos/**
-        - id: kakaoMessages
-          uri: http://kakaoMessages:8080
+        - id: kakaomessages
+          uri: http://kakaomessages:8080
           predicates:
-            - Path= /kakaoMessages/**
+            - Path=/kakaoMessages/**
       globalcors:
         corsConfigurations:
           '[/**]':
